@@ -820,7 +820,9 @@ function cloneState(state: FiscalDayState): FiscalDayState {
 
 /**
  * Group lines by tax and compute the receipt tax summary. Arithmetic is in
- * integer cents; each line's tax is rounded on its own, as FDMS does.
+ * integer cents. The tax is worked out once on each group's total, as FDMS
+ * does: rounding every line on its own drifts by a cent once a group has a
+ * few lines (discount lines included), and FDMS answers RCPT026.
  * taxCode is part of the group, so two codes under one taxID stay separate
  * entries, as in the spec's own example.
  */
@@ -828,7 +830,7 @@ export function buildReceiptTaxes(
   lines: ReceiptLine[],
   taxInclusive: boolean,
 ): ReceiptTax[] {
-  const groups = new Map<string, { tax: ReceiptTax; taxCents: number; salesCents: number }>();
+  const groups = new Map<string, { tax: ReceiptTax; linesCents: number }>();
   for (const line of lines) {
     const key = `${line.taxID}|${line.taxPercent ?? ""}|${line.taxCode ?? ""}`;
     const g = groups.get(key) ?? {
@@ -839,21 +841,20 @@ export function buildReceiptTaxes(
         taxAmount: 0,
         salesAmountWithTax: 0,
       },
-      taxCents: 0,
-      salesCents: 0,
+      linesCents: 0,
     };
-    const totalCents = toCents(line.receiptLineTotal);
-    const taxCents = lineTaxCents(totalCents, line.taxPercent ?? 0, taxInclusive);
-    g.taxCents += taxCents;
-    g.salesCents += taxInclusive ? totalCents : totalCents + taxCents;
+    g.linesCents += toCents(line.receiptLineTotal);
     groups.set(key, g);
   }
   return [...groups.values()]
-    .map((g) => ({
-      ...g.tax,
-      taxAmount: centsToAmount(g.taxCents),
-      salesAmountWithTax: centsToAmount(g.salesCents),
-    }))
+    .map((g) => {
+      const taxCents = lineTaxCents(g.linesCents, g.tax.taxPercent ?? 0, taxInclusive);
+      return {
+        ...g.tax,
+        taxAmount: centsToAmount(taxCents),
+        salesAmountWithTax: centsToAmount(taxInclusive ? g.linesCents : g.linesCents + taxCents),
+      };
+    })
     .sort(compareReceiptTaxes);
 }
 

@@ -29,6 +29,14 @@ unless noted.
 
 ### Fixed
 
+- Receipt tax is now worked out once on each tax group's total, as FDMS
+  does, instead of rounding every line and adding them up. The per-line
+  sum could be a cent out once a group had several lines, discount lines
+  included: FDMS rejected a 322.20 receipt at 15.5% inclusive with RCPT026
+  because 43.23 was sent instead of 43.24. The simulator now checks
+  `receiptTaxes` and answers RCPT026 and RCPT027 the same way. Seen live on
+  a VAT device.
+
 - A 5xx, 408 or 429 answer to SubmitReceipt no longer clears the
   pending-submit marker. Before, any HTTP error was taken as a definite
   rejection, so when a proxy answered 502 or 504, or FDMS answered 500
@@ -125,8 +133,8 @@ fiscal behaviour changes, and 0.3.x code keeps working.
   been built with Gradle.
 - **Integer cents.** `ReceiptInput` amounts are a whole number of major
   units or `cents("11.50")`; a fractional JS number throws, naming the
-  field. Tax, totals, payments and counters are computed in integer cents
-  and rounded per line. `receiptInputFromJson()` converts amounts that came
+  field. Tax, totals, payments and counters are computed in integer cents,
+  and tax is rounded once per tax group. `receiptInputFromJson()` converts amounts that came
   through JSON with up to two places; the CLI and MCP server apply it.
 - **Crash safety.** With a `Storage`, `FiscalDevice` writes a
   pending-submit marker before every SubmitReceipt and `reconcile()` settles

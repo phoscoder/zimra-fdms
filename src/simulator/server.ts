@@ -17,7 +17,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { TLSSocket } from "node:tls";
 import { webcrypto } from "node:crypto";
 import { SimulatorCa, certificateCommonName, certificatePublicKey } from "./ca.js";
-import { accumulateCounters } from "../core/device.js";
+import { accumulateCounters, buildReceiptTaxes } from "../core/device.js";
 import { fdmsDateTime, fiscalDaySigningString, receiptSigningString, toCents } from "../core/signing.js";
 import { sha256Base64 } from "../core/sha256.js";
 import { derToP1363, p1363ToDer } from "../core/signer.js";
@@ -440,7 +440,18 @@ export class FdmsSimulator {
     if (paid !== toCents(r.receiptTotal)) {
       err("RCPT021", RED, "Payments do not equal the receipt total");
     }
+    // FDMS works the tax out itself and compares it with what was sent.
+    const key = (t: { taxID: number; taxPercent?: number | null; taxCode?: string | null }) =>
+      `${t.taxID}|${t.taxPercent ?? ""}|${t.taxCode ?? ""}`;
+    const expectedTaxes = new Map(buildReceiptTaxes(r.receiptLines, r.receiptLinesTaxInclusive).map((t) => [key(t), t]));
     for (const t of r.receiptTaxes) {
+      const want = expectedTaxes.get(key(t));
+      if (want && toCents(t.taxAmount) !== toCents(want.taxAmount)) {
+        err("RCPT026", RED, "Incorrectly calculated tax amount");
+      }
+      if (want && toCents(t.salesAmountWithTax) !== toCents(want.salesAmountWithTax)) {
+        err("RCPT027", RED, "Incorrectly calculated total sales amount (including tax)");
+      }
       if (!this.options.taxes.some((x) => x.taxID === t.taxID)) {
         err("RCPT013", RED, `Tax ID ${t.taxID} is not in the device tax table`);
       }

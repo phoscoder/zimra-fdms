@@ -90,7 +90,8 @@ describe("receipt tax arithmetic", () => {
     }
   });
 
-  it("sums per-line rounded tax within a group and keeps exempt lines at zero", () => {
+  it("works out the tax once on each group's total and keeps exempt lines at zero", () => {
+    // Two $1.00 lines at 14.5%: 29 cents on $2.00, not 15 + 15.
     const taxes = buildReceiptTaxes(
       [line(100, 14.5, 1), line(100, 14.5, 2), line(500, null, 3, 3)],
       false,
@@ -98,10 +99,19 @@ describe("receipt tax arithmetic", () => {
     assert.deepEqual(
       taxes.map((t) => [t.taxID, t.taxAmount, t.salesAmountWithTax]),
       [
-        [1, 0.3, 2.3],
+        [1, 0.29, 2.29],
         [3, 0, 5],
       ],
     );
+  });
+
+  it("matches FDMS on a discounted receipt it rejected with RCPT026", () => {
+    // 5.00 + 3.00 + 350.00 less 10%, 15.5% included: 322.20 x 15.5 / 115.5 = 43.24.
+    // Rounding each line gave 43.23.
+    const totals = [500, -50, 300, -30, 35_000, -3_500];
+    const [t] = buildReceiptTaxes(totals.map((c, i) => line(c, 15.5, i + 1)), true);
+    assert.equal(t!.taxAmount, 43.24);
+    assert.equal(t!.salesAmountWithTax, 322.2);
   });
 
   it("refuses a non-finite tax percent or an amount too large to compute exactly", () => {

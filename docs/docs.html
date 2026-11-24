@@ -712,8 +712,8 @@ payments: [{ moneyType: "Cash", amount: cents("120.00") }],</code></pre>
   </div>
 
   <p>The error names the field: <code>lines[2].price: 1.25 has a fractional part. Pass cents("1.25")
-  or a whole number of major units</code>. Tax is computed per line in cents and rounded per line, as
-  FDMS does; totals, payments and counters are summed in cents.</p>
+  or a whole number of major units</code>. Tax is computed in cents on each tax group's total and rounded
+  once, as FDMS does; totals, payments and counters are summed in cents.</p>
 
   <h3>Amounts from JSON</h3>
   <p>A number in a JSON file or HTTP body was exact decimal text before it was parsed.
